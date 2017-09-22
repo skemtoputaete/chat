@@ -25,9 +25,17 @@ class Client
           when 'C'
             puts "Connection information: #{message[1]}"
           when 'R'
-            puts "Registration information: #{message[1]}"
+            if message[1] == 'F'
+              signup(true)
+            else
+              puts 'You have been successfully registered!'
+            end
           when 'A'
-            puts "Autorization information: #{message[1]}"
+            if message[1] == 'F'
+              login(true)
+            else
+              puts 'You have been successfully authorized!'
+            end
           when 'M'
             puts "#{message[1]}"
           when 'E'
@@ -41,9 +49,10 @@ class Client
       @request = Thread.new do
         loop do
           message = 'M' + @spacer
-          message += $stdin.gets.chomp
-          puts message
+          text = $stdin.gets.chomp
+          message += text
           @server.puts message.encode('UTF-8')
+          puts @nickname + ' :' + text
         end
       end
     end
@@ -52,17 +61,27 @@ class Client
       @server.puts 'C' + @spacer
     end
 
-    def signup
+    def signup(result = nil)
+      if result
+        puts 'The nickname is used!'
+      end
       puts 'Enter login and password through space.'
       login_password = gets
       message = 'R' + @spacer + login_password
+      login = login.split.first
+      @nickname = login
       @server.puts message.encode('UTF-8')
     end
 
-    def login
+    def login(result = nil)
+      if result
+        puts 'Wrong password!'
+      end
       puts 'Enter login and password through space.'
       login_password = gets
       message = 'A' + @spacer + login_password
+      login = login.split.first
+      @nickname = login
       @server.puts message.encode('UTF-8')
     end
 

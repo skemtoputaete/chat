@@ -1,9 +1,11 @@
 # encoding: UTF-8
+require 'thread'
 require 'socket'
 
 class Server
   def initialize(ip, port)
     @server = TCPServer.open(ip, port)
+    @mutex = Mutex.new
     @connections = {}
     @clients = {}
     @spacer = 0.chr
@@ -14,7 +16,6 @@ class Server
     def run
       loop do
         Thread.start(@server.accept) do |client|
-          # @clients << client
           puts 'Connection accepted.'
           get_message(client)
         end
@@ -27,15 +28,17 @@ class Server
     # login_password[1] is password
     def register_client(client, login_password)
       pair = login_password.split
-      @connections.each do |existed_client, existed_nickname|
-        if existed_client == client || existed_nickname == pair[1]
-          client.puts 'R' + @spacer + 'F' + @spacer + 'This username already exist.'
-          Thread.kill self
+      @mutex.synchronize do
+        @connections.each do |existed_client, existed_nickname|
+          if existed_client == client || existed_nickname == pair[0]
+            client.puts 'R' + @spacer + 'F' + @spacer + 'This username already exist.'
+            Thread.kill self
+          end
         end
+        @connections[client] = pair[0]
+        @clients[pair[0]] = pair[1]
       end
-      @connections[client] = pair[1]
-      @clients[pair[1]] = pair[2]
-      puts Time.now.to_s + " Client with nickname #{pair[1]} has been registered."
+      puts Time.now.to_s + " Client with nickname #{pair[0]} has been registered."
       client.puts 'R' + @spacer + 'S' + @spacer + 'Your sign up successfull!'
     end
 
@@ -45,22 +48,26 @@ class Server
     # login_password[1] is password
     def check_client(client, login_password)
       pair = login_password.split
-      if @clients[pair[1]].nil?
-        client.puts 'A' + @spacer + "Client with this nickname doesn't exist."
-        Thread.kill self
-      end
-      unless @clients[pair[1]] == pair[2]
-        client.puts 'A' + @spacer + 'Wrong password.'
-        Thread.kill self
-      end
-      if @connections[client].nil?
-        @connections[client] = pair[1]
+      @mutex.synchronize do
+        if @clients[pair[0]].nil?
+          client.puts 'A' + @spacer + "Client with this nickname doesn't exist."
+          Thread.kill self
+        end
+        unless @clients[pair[0]] == pair[1]
+          client.puts 'A' + @spacer + 'Wrong password.'
+          Thread.kill self
+        end
+        if @connections[client].nil?
+          @connections[client] = pair[0]
+        end
       end
       puts Time.now.to_s = "Client with nickname #{pair[1]} has been authorized."
       client.puts 'R' + @spacer + 'You log in successfull!'
-      @connections.each_key do |other_client|
-        unless other_client == client
-          other_client.puts 'M' + @spacer + "#{pair[1]} joined the chat."
+      @mutex.synchronize do
+        @connections.each_key do |other_client|
+          unless other_client == client
+            other_client.puts 'M' + @spacer + "#{pair[1]} joined the chat."
+          end
         end
       end
     end
@@ -68,10 +75,12 @@ class Server
     # send_client_message(client, message)
     # This method sends message of one client to other
     def send_client_message(client, message)
-      nickname = @connections[client]
-      @connections.each_key do |other_client|
-        unless other_client == client
-          other_client.puts 'M' + @spaces + nickname + ': ' + message
+      @mutex.synchronize do
+        nickname = @connections[client]
+        @connections.each_key do |other_client|
+          unless other_client == client
+            other_client.puts 'M' + @spaces + nickname + ': ' + message
+          end
         end
       end
     end
@@ -79,10 +88,12 @@ class Server
     # client_left(client)
     # This method informs all clients that someone has left the chat
     def client_left(client)
-      nickname = @connections[client]
-      @connections.delete(client)
-      @connections.each_key do |c|
-        c.puts 'M' + @spaces + nickname + ' left the chat.'
+      @mutex.synchronize do
+        nickname = @connections[client]
+        @connections.delete(client)
+        @connections.each_key do |c|
+          c.puts 'M' + @spaces + nickname + ' left the chat.'
+        end
       end
     end
 
