@@ -8,8 +8,8 @@ class Client
     @request = nil
     @response = nil
     listen
-    # check_connection
-    # action
+    check_connection
+    action
     send
     @request.join
     @response.join

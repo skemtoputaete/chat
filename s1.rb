@@ -14,27 +14,38 @@ class Server
   def run
     loop {
       Thread.start(@server.accept) do |client|
-        message = client.gets.chomp
-        status = message.split(@spacer).first
-        message = message.split(@spacer).first
-        case status
-          when 'R'
-            @connections.each do |other_client, other_nickname|
-              if message == other_nickname
-                client.puts 'This username already exist'
-                Thread.kill self
+        puts "#{Time.now} Connection accepted."
+        loop {
+          puts "New iteration"
+          pair = client.gets.chomp
+          pair = pair.split(@spacer)
+          status = pair[0]
+          message = pair[1]
+          case status
+            when 'R'
+              puts "#{Time.now} Start register #{message}"
+              @connections.each do |other_client, other_nickname|
+                if message.to_sym == other_nickname
+                  client.puts 'This username already exist'
+                  Thread.kill self
+                end
               end
-            end
-            puts "New user: #{message}"
-            @connections[client] = message
-            client.puts 'Connection established'
-          when 'M'
-            @connections.each_key do |other_client|
-                client.puts message
-            end
-        end
+              puts "#{Time.now} New user: #{message}"
+              @connections[message.to_sym] = client
+              client.puts 'Connection established'
+            when 'M'
+              b = 'M' + @spacer + message
+              @connections.each_value do |other_client|
+                puts other_client
+                other_client.puts b
+              end
+              puts "#{Time.now} New message"
+            else
+              puts "#{Time.now} Unrecognized status."
+          end
+        }
       end
-    }.hoin
+    }.join
   end
 end
 
