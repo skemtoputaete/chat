@@ -3,13 +3,13 @@ require 'socket'
 
 class Client
   def initialize(server)
-    @spacer = 0.chr
     @server = server
+    @spacer = 0.chr
     @request = nil
     @response = nil
     listen
-    check_connection
-    action
+    # check_connection
+    # action
     send
     @request.join
     @response.join
@@ -68,7 +68,7 @@ class Client
       puts 'Enter login and password through space.'
       login_password = gets
       message = 'R' + @spacer + login_password
-      login = login.split.first
+      login = login_password.split.first
       @nickname = login
       @server.puts message.encode('UTF-8')
     end
@@ -80,7 +80,7 @@ class Client
       puts 'Enter login and password through space.'
       login_password = gets
       message = 'A' + @spacer + login_password
-      login = login.split.first
+      login = login_password.split.first
       @nickname = login
       @server.puts message.encode('UTF-8')
     end

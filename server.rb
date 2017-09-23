@@ -12,12 +12,14 @@ class Server
     run
   end
 
-  private
     def run
       loop do
-        Thread.start(@server.accept) do |client|
+        Thread.new(@server.accept) do |client|
+          @monitor = Monitor.new
           puts 'Connection accepted.'
-          get_message(client)
+          @monitor.synchronize do
+            get_message(client)
+          end
         end
       end
     end
@@ -28,7 +30,8 @@ class Server
     # login_password[1] is password
     def register_client(client, login_password)
       pair = login_password.split
-      @mutex.synchronize do
+      @monitor.synchronize do
+        puts @connections.size
         @connections.each do |existed_client, existed_nickname|
           if existed_client == client || existed_nickname == pair[0]
             client.puts 'R' + @spacer + 'F' + @spacer + 'This username already exist.'
@@ -48,7 +51,7 @@ class Server
     # login_password[1] is password
     def check_client(client, login_password)
       pair = login_password.split
-      @mutex.synchronize do
+      @monitor.synchronize do
         if @clients[pair[0]].nil?
           client.puts 'A' + @spacer + "Client with this nickname doesn't exist."
           Thread.kill self
@@ -63,7 +66,7 @@ class Server
       end
       puts Time.now.to_s = "Client with nickname #{pair[1]} has been authorized."
       client.puts 'R' + @spacer + 'You log in successfull!'
-      @mutex.synchronize do
+      @monitor.synchronize do
         @connections.each_key do |other_client|
           unless other_client == client
             other_client.puts 'M' + @spacer + "#{pair[1]} joined the chat."
@@ -75,11 +78,13 @@ class Server
     # send_client_message(client, message)
     # This method sends message of one client to other
     def send_client_message(client, message)
-      @mutex.synchronize do
+      @monitor.synchronize do
         nickname = @connections[client]
-        @connections.each_key do |other_client|
-          unless other_client == client
-            other_client.puts 'M' + @spaces + nickname + ': ' + message
+        puts nickname
+        @connections.each do |other_connection, other_nickname|
+          puts other_nickname
+          if other_nickname != nickname
+            other_connection.puts 'M' + @spaces + nickname + ': ' + message
           end
         end
       end
@@ -88,7 +93,7 @@ class Server
     # client_left(client)
     # This method informs all clients that someone has left the chat
     def client_left(client)
-      @mutex.synchronize do
+      @monitor.synchronize do
         nickname = @connections[client]
         @connections.delete(client)
         @connections.each_key do |c|
