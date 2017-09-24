@@ -58,7 +58,7 @@ class Client
               message = 'E' + @spacer + @nickname
             else
               time = Time.now.strftime("%H:%M:%S")
-              message = 'M' + @spacer + @nickname + " (#{time}) : "
+              message = 'M' + @spacer + @nickname + " (#{time}): "
               message += text
             end
             @server.puts message.encode('UTF-8')
@@ -78,9 +78,12 @@ class Client
       begin
         puts 'Enter login and password through space.'
         login_password = gets.chomp
-      end while !login_password.empty? && !login_password.include?(' ')
-      message = 'R' + @spacer + login_password
-      login = login_password.split.first
+        login_password = login_password.split
+      end while login_password.size < 2
+      login = login_password[0]
+      password = login_password[1]
+      password = password.crypt('$hf$qwe')
+      message = 'R' + @spacer + "#{login} #{password}"
       @nickname = login
       @server.puts message.encode('UTF-8')
     end
@@ -92,9 +95,12 @@ class Client
       begin
         puts 'Enter login and password through space.'
         login_password = gets.chomp
-      end while !login_password.empty? && !login_password.include?(' ')
-      message = 'A' + @spacer + login_password
-      login = login_password.split.first
+        login_password = login_password.split
+      end while login_password.size < 2
+      login = login_password[0]
+      password = login_password[1]
+      password = password.crypt('$hf$qwe')
+      message = 'A' + @spacer + "#{login} #{password}"
       @nickname = login
       @server.puts message.encode('UTF-8')
     end
@@ -103,13 +109,19 @@ class Client
       puts 'Choose action: '
       puts '1 - sign up'
       puts '2 - log in'
-      choice = gets.chomp
-      case choice
-      when '1'
-        signup
-      when '2'
-        login
-      end
+      begin
+        choice = gets.chomp
+        case choice
+        when '1'
+          signup
+          right_command = true
+        when '2'
+          login
+          right_command = true
+        else
+          right_command = false
+        end
+      end while !right_command
     end
 end
 

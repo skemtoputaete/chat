@@ -35,7 +35,7 @@ class Server
             when 'M'
               send_to_all(message, client)
             else
-              puts "#{Time.now.strftime("%-d/%-m/%y %H:%M:%S")} Unrecognized status."
+              puts "#{Time.now.strftime("%-d/%-m/%y %H:%M:%S")} unrecognized status."
           end
         }
       end
@@ -45,7 +45,7 @@ class Server
   def register(message, client)
     login_password  = message.split
     nickname = login_password[0].to_sym
-    @connections.each do |other_nickname, other_client|
+    @clients.each_key do |other_nickname|
       if nickname == other_nickname
         client.puts 'R' + @spacer + 'F'
         return
