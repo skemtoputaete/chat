@@ -7,6 +7,8 @@ class Client
     @spacer = 0.chr
     @request = nil
     @response = nil
+    @registered = false
+    @authorized = false
     listen
     check_connection
     action
@@ -28,12 +30,14 @@ class Client
             if message[1] == 'F'
               signup(true)
             else
+              @registered = true
               puts 'You have been successfully registered!'
             end
           when 'A'
             if message[1] == 'F'
               login(true)
             else
+              @authorized = true
               puts 'You have been successfully authorized!'
             end
           when 'M'
@@ -48,11 +52,17 @@ class Client
     def send
       @request = Thread.new do
         loop do
-          message = 'M' + @spacer
-          text = $stdin.gets.chomp
-          message += text
-          @server.puts message.encode('UTF-8')
-          puts @nickname + ' :' + text
+          if @registered || @authorized
+            text = $stdin.gets.chomp
+            if text == '!quit'
+              message = 'E' + @spacer + @nickname
+            else
+              time = Time.now.strftime("%H:%M:%S")
+              message = 'M' + @spacer + @nickname + " (#{time}) : "
+              message += text
+            end
+            @server.puts message.encode('UTF-8')
+          end
         end
       end
     end
@@ -65,8 +75,10 @@ class Client
       if result
         puts 'The nickname is used!'
       end
-      puts 'Enter login and password through space.'
-      login_password = gets
+      begin
+        puts 'Enter login and password through space.'
+        login_password = gets.chomp
+      end while !login_password.empty? && !login_password.include?(' ')
       message = 'R' + @spacer + login_password
       login = login_password.split.first
       @nickname = login
@@ -77,8 +89,10 @@ class Client
       if result
         puts 'Wrong password!'
       end
-      puts 'Enter login and password through space.'
-      login_password = gets
+      begin
+        puts 'Enter login and password through space.'
+        login_password = gets.chomp
+      end while !login_password.empty? && !login_password.include?(' ')
       message = 'A' + @spacer + login_password
       login = login_password.split.first
       @nickname = login

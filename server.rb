@@ -5,131 +5,92 @@ require 'socket'
 class Server
   def initialize(ip, port)
     @server = TCPServer.open(ip, port)
-    @mutex = Mutex.new
     @connections = {}
     @clients = {}
     @spacer = 0.chr
     run
   end
 
-    def run
-      loop do
-        Thread.new(@server.accept) do |client|
-          @monitor = Monitor.new
-          puts 'Connection accepted.'
-          @monitor.synchronize do
-            get_message(client)
+  def run
+    loop {
+      Thread.start(@server.accept) do |client|
+        puts "#{Time.now.strftime("%-d/%-m/%y %H:%M:%S")} new connection accepted."
+        loop {
+          puts "#{Time.now.strftime("%-d/%-m/%y %H:%M:%S")} waiting for new message..."
+          status_message = client.gets.chomp
+          puts "#{Time.now.strftime("%-d/%-m/%y %H:%M:%S")} new message #{status_message}"
+          status_message = status_message.split(@spacer)
+          status = status_message[0]
+          message = status_message[1]
+          case status
+            when 'C'
+              response = 'C' + @spacer + 'connection is good.'
+              client.puts response
+            when 'E'
+              client_left(message, client)
+            when 'R'
+              register(message, client)
+            when 'A'
+              authorize(message, client)
+            when 'M'
+              send_to_all(message, client)
+            else
+              puts "#{Time.now.strftime("%-d/%-m/%y %H:%M:%S")} Unrecognized status."
           end
-        end
+        }
       end
-    end
+    }.join
+  end
 
-    # register_client(client, login_password)
-    # This method registers a new client
-    # login_password[0] is login
-    # login_password[1] is password
-    def register_client(client, login_password)
-      pair = login_password.split
-      @monitor.synchronize do
-        puts @connections.size
-        @connections.each do |existed_client, existed_nickname|
-          if existed_client == client || existed_nickname == pair[0]
-            client.puts 'R' + @spacer + 'F' + @spacer + 'This username already exist.'
-            Thread.kill self
-          end
-        end
-        @connections[client] = pair[0]
-        @clients[pair[0]] = pair[1]
+  def register(message, client)
+    login_password  = message.split
+    nickname = login_password[0].to_sym
+    @connections.each do |other_nickname, other_client|
+      if nickname == other_nickname
+        client.puts 'R' + @spacer + 'F'
+        return
       end
-      puts Time.now.to_s + " Client with nickname #{pair[0]} has been registered."
-      client.puts 'R' + @spacer + 'S' + @spacer + 'Your sign up successfull!'
     end
+    puts "#{Time.now.strftime("%-d/%-m/%y %H:%M:%S")} new user: #{nickname}"
+    @connections[nickname] = client
+    @clients[nickname] = login_password[1]
+    client.puts 'R' + @spacer + 'Enjoy the chat!'
+  end
 
-    # check_client(client, login_password)
-    # This method checks user's login and password
-    # login_password[0] is login
-    # login_password[1] is password
-    def check_client(client, login_password)
-      pair = login_password.split
-      @monitor.synchronize do
-        if @clients[pair[0]].nil?
-          client.puts 'A' + @spacer + "Client with this nickname doesn't exist."
-          Thread.kill self
-        end
-        unless @clients[pair[0]] == pair[1]
-          client.puts 'A' + @spacer + 'Wrong password.'
-          Thread.kill self
-        end
-        if @connections[client].nil?
-          @connections[client] = pair[0]
-        end
-      end
-      puts Time.now.to_s = "Client with nickname #{pair[1]} has been authorized."
-      client.puts 'R' + @spacer + 'You log in successfull!'
-      @monitor.synchronize do
-        @connections.each_key do |other_client|
-          unless other_client == client
-            other_client.puts 'M' + @spacer + "#{pair[1]} joined the chat."
-          end
-        end
+  def send_to_all(message, client)
+    response = 'M' + @spacer + message
+    @connections.each_value do |other_client|
+      unless other_client == client
+        other_client.puts response
       end
     end
+    puts "#{Time.now.strftime("%-d/%-m/%y %H:%M:%S")} new message"
+  end
 
-    # send_client_message(client, message)
-    # This method sends message of one client to other
-    def send_client_message(client, message)
-      @monitor.synchronize do
-        nickname = @connections[client]
-        puts nickname
-        @connections.each do |other_connection, other_nickname|
-          puts other_nickname
-          if other_nickname != nickname
-            other_connection.puts 'M' + @spaces + nickname + ': ' + message
-          end
-        end
-      end
+  def client_left(message, client)
+    nickname = message.to_sym
+    @connections.reject! { |key| key == nickname }
+    puts "#{Time.now.strftime("%-d/%-m/%y %H:%M:%S")} client #{nickname} was deleted"
+    client.puts 'M' + @spacer + 'Goodbye!'
+    client.close
+    message_to_all = 'M' + @spacer + "#{nickname} has left the chat!"
+    @connections.each_value do |other_client|
+        other_client.puts message_to_all
     end
+    Thread.kill self
+  end
 
-    # client_left(client)
-    # This method informs all clients that someone has left the chat
-    def client_left(client)
-      @monitor.synchronize do
-        nickname = @connections[client]
-        @connections.delete(client)
-        @connections.each_key do |c|
-          c.puts 'M' + @spaces + nickname + ' left the chat.'
-        end
-      end
+  def authorize(message, client)
+    nickname_password = message.split
+    nickname = nickname_password[0].to_sym
+    password = nickname_password[1]
+    if @clients[nickname] != password
+      client.puts 'A' + @spacer + 'F'
+      return
     end
-
-    # get_message(client) - gets a message from the client
-    # Handle client's message
-    # Client sends a message with one char in the beginning
-    # This char separated by 0.chr
-    # Below meanings of these chars:
-    # C - check the connection
-    # R - client tries to register
-    # A - client tries to log in
-    # M - client sends a message
-    # E - client left the cha
-    def get_message(client)
-      loop do
-        message = client.gets.chomp
-        pair = message.split(@spacer)
-        case pair[0]
-        when 'C'
-          client.puts 'C' + @spacer + 'Connection is OK.'
-        when 'R'
-          register_client(client, pair[1])
-        when 'A'
-          check_client(client, pair[1])
-        when 'M'
-          send_client_message(client, pair[1])
-        when 'E'
-          puts "#{message[1]}"
-        end
-      end
-    end
+    @connections[nickname] = client
+    client.puts 'A' + @spacer + 'you successfully authorized!'
+  end
 end
 
 server = Server.new('localhost', 60231)
