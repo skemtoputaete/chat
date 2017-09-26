@@ -9,6 +9,7 @@ class Client
     @response = nil
     @registered = false
     @authorized = false
+    @disconnected = false
     listen
     check_connection
     action
@@ -44,6 +45,8 @@ class Client
             puts "#{message[1]}"
           when 'E'
             puts "#{message[1]}"
+            @disconnected = true
+            Thread.kill @response
           end
         end
       end
@@ -54,6 +57,7 @@ class Client
         loop do
           if @registered || @authorized
             text = $stdin.gets.chomp
+            Thread.kill @request if @disconnected
             if text == '!quit'
               message = 'E' + @spacer + @nickname
             else
@@ -81,11 +85,13 @@ class Client
         login_password = login_password.split
       end while login_password.size < 2
       login = login_password[0]
+      return false if login == '!back'
       password = login_password[1]
-      password = password.crypt('$hf$qwe')
+      password = password.crypt('hf')
       message = 'R' + @spacer + "#{login} #{password}"
       @nickname = login
       @server.puts message.encode('UTF-8')
+      return true
     end
 
     def login(result = nil)
@@ -98,26 +104,29 @@ class Client
         login_password = login_password.split
       end while login_password.size < 2
       login = login_password[0]
+      return false if login == '!back'
       password = login_password[1]
-      password = password.crypt('$hf$qwe')
+      password = password.crypt('hf')
       message = 'A' + @spacer + "#{login} #{password}"
       @nickname = login
       @server.puts message.encode('UTF-8')
+      return true
     end
 
     def action
-      puts 'Choose action: '
-      puts '1 - sign up'
-      puts '2 - log in'
       begin
+        puts 'Choose action: '
+        puts '1 - sign up'
+        puts '2 - log in'
+        puts '3 - exit'
         choice = gets.chomp
         case choice
         when '1'
-          signup
-          right_command = true
+          right_command = signup
         when '2'
-          login
-          right_command = true
+          right_command = login
+        when '3'
+          exit
         else
           right_command = false
         end

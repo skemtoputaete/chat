@@ -8,7 +8,18 @@ class Server
     @connections = {}
     @clients = {}
     @spacer = 0.chr
+    get_clients_info
     run
+  end
+
+  def get_clients_info
+    clients = File.readlines('clients.txt')
+    clients.each do |client|
+      login_password = client.split
+      login = login_password[0].to_sym
+      password = login_password[1]
+      @clients[login] = password
+    end
   end
 
   def run
@@ -51,7 +62,14 @@ class Server
         return
       end
     end
+    File.open('clients.txt', 'a+') do |clients_file|
+      clients_file.puts "#{nickname} #{login_password[1]}"
+    end
     puts "#{Time.now.strftime("%-d/%-m/%y %H:%M:%S")} new user: #{nickname}"
+    time = Time.now.strftime("%H:%M:%S")
+    @connections.each_value do |other_client|
+      other_client.puts 'M' + @spacer + "#{time} #{nickname} has joined the chat!"
+    end
     @connections[nickname] = client
     @clients[nickname] = login_password[1]
     client.puts 'R' + @spacer + 'Enjoy the chat!'
@@ -71,7 +89,7 @@ class Server
     nickname = message.to_sym
     @connections.reject! { |key| key == nickname }
     puts "#{Time.now.strftime("%-d/%-m/%y %H:%M:%S")} client #{nickname} was deleted"
-    client.puts 'M' + @spacer + 'Goodbye!'
+    client.puts 'E' + @spacer + 'Goodbye!'
     client.close
     message_to_all = 'M' + @spacer + "#{nickname} has left the chat!"
     @connections.each_value do |other_client|
@@ -87,6 +105,10 @@ class Server
     if @clients[nickname] != password
       client.puts 'A' + @spacer + 'F'
       return
+    end
+    time = Time.now.strftime("%H:%M:%S")
+    @connections.each_value do |other_client|
+      other_client.puts 'M' + @spacer + "#{time} #{nickname} has joined the chat!"
     end
     @connections[nickname] = client
     client.puts 'A' + @spacer + 'you successfully authorized!'
